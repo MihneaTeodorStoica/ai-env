@@ -8,6 +8,7 @@ LOCAL_UV="$UV_DIR/uv"
 VENV_DIR="$SCRIPT_DIR/.venv"
 VENV_PYTHON="$VENV_DIR/bin/python"
 WORK_DIR="$SCRIPT_DIR/work"
+REMOVE_LOCAL_UV=0
 
 status() {
     printf '==> %s\n' "$*"
@@ -76,11 +77,19 @@ ensure_uv() {
     mkdir -p "$UV_DIR"
     env UV_INSTALL_DIR="$UV_DIR" UV_NO_MODIFY_PATH=1 sh -c "$(curl -LsSf https://astral.sh/uv/install.sh)"
     UV="$LOCAL_UV"
+    REMOVE_LOCAL_UV=1
+}
+
+cleanup_local_uv() {
+    if [ "$REMOVE_LOCAL_UV" -eq 1 ] && [ -d "$UV_DIR" ]; then
+        status "Removing temporary uv installation from $UV_DIR"
+        rm -rf "$UV_DIR"
+    fi
 }
 
 install_env() {
     REQUIREMENTS_TMP=$(mktemp "${TMPDIR:-/tmp}/ai-env-requirements.XXXXXX")
-    trap 'rm -f "$REQUIREMENTS_TMP"' EXIT INT TERM HUP
+    trap 'rm -f "$REQUIREMENTS_TMP"; cleanup_local_uv' EXIT INT TERM HUP
     write_requirements_file "$REQUIREMENTS_TMP"
 
     ensure_uv
@@ -99,6 +108,7 @@ install_env() {
     "$UV" pip install --python "$VENV_PYTHON" -r "$REQUIREMENTS_TMP"
 
     rm -f "$REQUIREMENTS_TMP"
+    cleanup_local_uv
     trap - EXIT INT TERM HUP
     status "Environment is ready"
 }

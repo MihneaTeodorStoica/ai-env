@@ -12,6 +12,7 @@ $LocalUv = Join-Path $UvDir "uv.exe"
 $VenvDir = Join-Path $PSScriptRoot ".venv"
 $VenvPython = Join-Path $VenvDir "Scripts/python.exe"
 $WorkDir = Join-Path $PSScriptRoot "work"
+$RemoveLocalUv = $false
 
 function Write-Status {
     param([string]$Message)
@@ -90,7 +91,15 @@ function Get-Uv {
         throw "uv installation completed but $LocalUv was not created."
     }
 
+    $script:RemoveLocalUv = $true
     return $LocalUv
+}
+
+function Remove-TemporaryUv {
+    if ($script:RemoveLocalUv -and (Test-Path $UvDir)) {
+        Write-Status "Removing temporary uv installation from $UvDir"
+        Remove-Item -Recurse -Force $UvDir
+    }
 }
 
 function Install-Env {
@@ -114,6 +123,7 @@ function Install-Env {
         Write-Status "Environment is ready"
     } finally {
         Remove-Item -Force $requirementsPath -ErrorAction SilentlyContinue
+        Remove-TemporaryUv
     }
 }
 
