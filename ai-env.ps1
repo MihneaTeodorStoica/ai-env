@@ -11,52 +11,50 @@ $UvDir = Join-Path $PSScriptRoot ".uv"
 $LocalUv = Join-Path $UvDir "uv.exe"
 $VenvDir = Join-Path $PSScriptRoot ".venv"
 $VenvPython = Join-Path $VenvDir "Scripts/python.exe"
+$DepsMarker = Join-Path $VenvDir ".ai-env-packages.txt"
 $WorkDir = Join-Path $PSScriptRoot "work"
 $RemoveLocalUv = $false
+$Packages = @(
+    "numpy",
+    "pandas",
+    "scipy",
+    "scikit-learn",
+    "xgboost",
+    "lightgbm",
+    "catboost",
+    "torch",
+    "torchvision",
+    "pytorch-lightning",
+    "torchmetrics",
+    "transformers",
+    "datasets",
+    "evaluate",
+    "spacy",
+    "nltk",
+    "gensim",
+    "fasttext",
+    "opencv-python",
+    "Pillow",
+    "scikit-image",
+    "matplotlib",
+    "seaborn",
+    "plotly",
+    "autoviz",
+    "joblib",
+    "tqdm",
+    "tensorboard",
+    "tensorflow",
+    "keras",
+    "jax",
+    "flax",
+    "optax",
+    "ydata-profiling",
+    "jupyterlab"
+)
 
 function Write-Status {
     param([string]$Message)
     Write-Host "==> $Message"
-}
-
-function Get-EmbeddedRequirements {
-    @"
-numpy
-pandas
-scipy
-scikit-learn
-xgboost
-lightgbm
-catboost
-torch
-torchvision
-pytorch-lightning
-torchmetrics
-transformers
-datasets
-evaluate
-spacy
-nltk
-gensim
-fasttext
-opencv-python
-Pillow
-scikit-image
-matplotlib
-seaborn
-plotly
-autoviz
-joblib
-tqdm
-tensorboard
-tensorflow
-keras
-jax
-flax
-optax
-ydata-profiling
-jupyterlab
-"@
 }
 
 function Get-Uv {
@@ -102,9 +100,15 @@ function Remove-TemporaryUv {
     }
 }
 
+function Test-DependenciesMatch {
+    if (-not (Test-Path $DepsMarker)) {
+        return $false
+    }
+
+    return (Get-Content -Raw $DepsMarker) -eq ($Packages -join "`n")
+}
+
 function Install-Env {
-    $requirementsPath = Join-Path ([System.IO.Path]::GetTempPath()) ("ai-env-requirements-" + [System.Guid]::NewGuid().ToString("N") + ".txt")
-    Set-Content -Path $requirementsPath -Value (Get-EmbeddedRequirements) -NoNewline
     $uv = Get-Uv
 
     try {
@@ -118,11 +122,16 @@ function Install-Env {
             Write-Status "Using existing virtual environment in $VenvDir"
         }
 
-        Write-Status "Installing dependencies"
-        & $uv pip install --python $VenvPython -r $requirementsPath
+        if (Test-DependenciesMatch) {
+            Write-Status "Dependencies already up to date"
+        } else {
+            Write-Status "Installing dependencies"
+            & $uv pip install --python $VenvPython @Packages
+            Set-Content -Path $DepsMarker -Value ($Packages -join "`n") -NoNewline
+        }
+
         Write-Status "Environment is ready"
     } finally {
-        Remove-Item -Force $requirementsPath -ErrorAction SilentlyContinue
         Remove-TemporaryUv
     }
 }

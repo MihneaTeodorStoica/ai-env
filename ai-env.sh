@@ -7,20 +7,10 @@ UV_DIR="$SCRIPT_DIR/.uv"
 LOCAL_UV="$UV_DIR/uv"
 VENV_DIR="$SCRIPT_DIR/.venv"
 VENV_PYTHON="$VENV_DIR/bin/python"
+DEPS_MARKER="$VENV_DIR/.ai-env-packages.txt"
 WORK_DIR="$SCRIPT_DIR/work"
 REMOVE_LOCAL_UV=0
-
-status() {
-    printf '==> %s\n' "$*"
-}
-
-die() {
-    printf 'error: %s\n' "$*" >&2
-    exit 1
-}
-
-write_requirements_file() {
-    cat >"$1" <<'EOF'
+PACKAGES="
 numpy
 pandas
 scipy
@@ -56,7 +46,15 @@ flax
 optax
 ydata-profiling
 jupyterlab
-EOF
+"
+
+status() {
+    printf '==> %s\n' "$*"
+}
+
+die() {
+    printf 'error: %s\n' "$*" >&2
+    exit 1
 }
 
 ensure_uv() {
@@ -87,10 +85,13 @@ cleanup_local_uv() {
     fi
 }
 
+dependencies_match() {
+    [ -f "$DEPS_MARKER" ] || return 1
+    [ "$(cat "$DEPS_MARKER")" = "$PACKAGES" ]
+}
+
 install_env() {
-    REQUIREMENTS_TMP=$(mktemp "${TMPDIR:-/tmp}/ai-env-requirements.XXXXXX")
-    trap 'rm -f "$REQUIREMENTS_TMP"; cleanup_local_uv' EXIT INT TERM HUP
-    write_requirements_file "$REQUIREMENTS_TMP"
+    trap 'cleanup_local_uv' EXIT INT TERM HUP
 
     ensure_uv
 
@@ -104,10 +105,16 @@ install_env() {
         status "Using existing virtual environment in $VENV_DIR"
     fi
 
-    status "Installing dependencies"
-    "$UV" pip install --python "$VENV_PYTHON" -r "$REQUIREMENTS_TMP"
+    if dependencies_match; then
+        status "Dependencies already up to date"
+    else
+        status "Installing dependencies"
+        # shellcheck disable=SC2086
+        set -- $PACKAGES
+        "$UV" pip install --python "$VENV_PYTHON" "$@"
+        printf '%s' "$PACKAGES" >"$DEPS_MARKER"
+    fi
 
-    rm -f "$REQUIREMENTS_TMP"
     cleanup_local_uv
     trap - EXIT INT TERM HUP
     status "Environment is ready"
