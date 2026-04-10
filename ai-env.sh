@@ -2,8 +2,6 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-COMMAND=${1:-help}
-
 PYTHON_VERSION="3.11"
 UV_DIR="$SCRIPT_DIR/.uv"
 LOCAL_UV="$UV_DIR/uv"
@@ -18,15 +16,6 @@ status() {
 die() {
     printf 'error: %s\n' "$*" >&2
     exit 1
-}
-
-usage() {
-    cat <<'EOF'
-Usage:
-  ./ai-env.sh install
-  ./ai-env.sh run [extra jupyter args]
-  ./ai-env.sh help
-EOF
 }
 
 write_requirements_file() {
@@ -85,7 +74,7 @@ ensure_uv() {
     command -v curl >/dev/null 2>&1 || die "Missing required command: curl"
     status "Installing uv into $UV_DIR"
     mkdir -p "$UV_DIR"
-    env UV_INSTALL_DIR="$UV_DIR" sh -c "$(curl -LsSf https://astral.sh/uv/install.sh)"
+    env UV_INSTALL_DIR="$UV_DIR" UV_NO_MODIFY_PATH=1 sh -c "$(curl -LsSf https://astral.sh/uv/install.sh)"
     UV="$LOCAL_UV"
 }
 
@@ -114,27 +103,8 @@ install_env() {
     status "Environment is ready"
 }
 
-run_lab() {
-    install_env
-    mkdir -p "$WORK_DIR"
-    status "Starting JupyterLab in $WORK_DIR"
-    shift
-    exec "$VENV_PYTHON" -m jupyter lab "$WORK_DIR" "$@"
-}
-
 cd "$SCRIPT_DIR"
-
-case "$COMMAND" in
-    install)
-        install_env
-        ;;
-    run)
-        run_lab "$@"
-        ;;
-    help|-h|--help|"")
-        usage
-        ;;
-    *)
-        die "Unknown command: $COMMAND"
-        ;;
-esac
+install_env
+mkdir -p "$WORK_DIR"
+status "Starting JupyterLab in $WORK_DIR"
+exec "$VENV_PYTHON" -m jupyter lab "$WORK_DIR" "$@"

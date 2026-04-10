@@ -1,7 +1,5 @@
 [CmdletBinding(PositionalBinding = $false)]
 param(
-    [Parameter(Position = 0)]
-    [string]$Command = "help",
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Args
 )
@@ -18,15 +16,6 @@ $WorkDir = Join-Path $PSScriptRoot "work"
 function Write-Status {
     param([string]$Message)
     Write-Host "==> $Message"
-}
-
-function Show-Usage {
-    @"
-Usage:
-  ./ai-env.ps1 install
-  ./ai-env.ps1 run [extra jupyter args]
-  ./ai-env.ps1 help
-"@
 }
 
 function Get-EmbeddedRequirements {
@@ -92,8 +81,10 @@ function Get-Uv {
     Write-Status "Installing uv into $UvDir"
     New-Item -ItemType Directory -Force -Path $UvDir | Out-Null
     $env:UV_INSTALL_DIR = $UvDir
+    $env:UV_NO_MODIFY_PATH = "1"
     & $installer.Source -ExecutionPolicy Bypass -c "irm https://astral.sh/uv/install.ps1 | iex" | Out-Null
     Remove-Item Env:UV_INSTALL_DIR -ErrorAction SilentlyContinue
+    Remove-Item Env:UV_NO_MODIFY_PATH -ErrorAction SilentlyContinue
 
     if (-not (Test-Path $LocalUv)) {
         throw "uv installation completed but $LocalUv was not created."
@@ -126,26 +117,7 @@ function Install-Env {
     }
 }
 
-function Run-Lab {
-    param([string[]]$JupyterArgs)
-
-    Install-Env
-    New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
-    Write-Status "Starting JupyterLab in $WorkDir"
-    & $VenvPython -m jupyter lab $WorkDir @JupyterArgs
-}
-
-switch ($Command) {
-    "install" {
-        Install-Env
-    }
-    "run" {
-        Run-Lab -JupyterArgs $Args
-    }
-    "help" {
-        Show-Usage
-    }
-    default {
-        throw "Unknown command: $Command"
-    }
-}
+Install-Env
+New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
+Write-Status "Starting JupyterLab in $WorkDir"
+& $VenvPython -m jupyter lab $WorkDir @Args
