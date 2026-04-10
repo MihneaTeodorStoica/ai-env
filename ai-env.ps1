@@ -13,6 +13,7 @@ $VenvDir = Join-Path $PSScriptRoot ".venv"
 $VenvPython = Join-Path $VenvDir "Scripts/python.exe"
 $DepsMarker = Join-Path $VenvDir ".ai-env-packages.txt"
 $WorkDir = Join-Path $PSScriptRoot "work"
+$PasswordFile = Join-Path $PSScriptRoot "password.txt"
 $RemoveLocalUv = $false
 $Packages = @(
     "numpy",
@@ -55,6 +56,21 @@ $Packages = @(
 function Write-Status {
     param([string]$Message)
     Write-Host "==> $Message"
+}
+
+function New-RandomPassword {
+    return [Convert]::ToHexString([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(24))
+}
+
+function Get-OrCreatePassword {
+    if (-not (Test-Path $PasswordFile) -or [string]::IsNullOrWhiteSpace((Get-Content -Raw $PasswordFile -ErrorAction SilentlyContinue))) {
+        $password = New-RandomPassword
+        Set-Content -Path $PasswordFile -Value $password -NoNewline
+        Write-Status "Generated server password in $PasswordFile"
+        return $password
+    }
+
+    return (Get-Content -Raw $PasswordFile).Trim()
 }
 
 function Get-Uv {
@@ -137,6 +153,10 @@ function Install-Env {
 }
 
 Install-Env
+$Password = Get-OrCreatePassword
+$env:AI_ENV_PASSWORD = $Password
+$HashedPassword = & $VenvPython -c "import os; from jupyter_server.auth import passwd; print(passwd(os.environ['AI_ENV_PASSWORD']))"
+Remove-Item Env:AI_ENV_PASSWORD -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 Write-Status "Starting JupyterLab in $WorkDir"
-& $VenvPython -m jupyter lab $WorkDir @Args
+& $VenvPython -m jupyter lab $WorkDir --PasswordIdentityProvider.hashed_password=$HashedPassword --PasswordIdentityProvider.password_required=True --PasswordIdentityProvider.allow_password_change=False @Args
